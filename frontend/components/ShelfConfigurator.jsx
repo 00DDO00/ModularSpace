@@ -18,7 +18,7 @@ export default function ShelfConfigurator() {
   // New state for modes
   const [editorMode, setEditorMode] = useState('structure'); // 'structure', 'fill', 'resize'
   const [coloredItems, setColoredItems] = useState(new Map()); // Map of cell keys to colors
-  const [selectedColor, setSelectedColor] = useState('#FF6B6B');
+  const [selectedColor, setSelectedColor] = useState('#004996');
   
   // Custom dimensions for each box - stores offset adjustments
   const [boxDimensions, setBoxDimensions] = useState(new Map()); // Map of cell keys to { left, right, top, bottom }
@@ -53,7 +53,7 @@ export default function ShelfConfigurator() {
 
     // Scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0d17);
+    scene.background = new THREE.Color(0xf5f5f5);
     sceneRef.current = scene;
 
     // Camera setup
@@ -63,7 +63,7 @@ export default function ShelfConfigurator() {
       0.1,
       1000
     );
-    camera.position.set(10, 8, 11);
+    camera.position.set(12, 10, 12);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
@@ -79,11 +79,11 @@ export default function ShelfConfigurator() {
     rendererRef.current = renderer;
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
-    directionalLight.position.set(12, 20, 8);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(10, 15, 10);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
@@ -93,13 +93,13 @@ export default function ShelfConfigurator() {
     directionalLight.shadow.camera.bottom = -20;
     scene.add(directionalLight);
 
-    const fillLight = new THREE.DirectionalLight(0x9aa7ff, 0.25);
-    fillLight.position.set(-6, 8, -4);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    fillLight.position.set(-5, 5, -5);
     scene.add(fillLight);
 
     // Ground plane
     const groundGeometry = new THREE.PlaneGeometry(50, 50);
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x101223, roughness: 1 });
+    const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.2 });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.5;
@@ -199,9 +199,9 @@ export default function ShelfConfigurator() {
     const depth = 0.8;
 
     const rodMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1f2635,
-      roughness: 0.6,
-      metalness: 0.3
+      color: 0x8b4513,
+      roughness: 0.7,
+      metalness: 0.2
     });
 
     // Calculate center offset
@@ -791,7 +791,7 @@ export default function ShelfConfigurator() {
             </div>
             <p className="text-xs tracking-[0.3rem] text-muted">DRAG TO ROTATE</p>
           </div>
-          <div className="relative border-2 border-line bg-background" style={{ height: '480px' }}>
+          <div className="relative border-2 border-line bg-background" style={{ height: '500px' }}>
             <canvas
               ref={canvasRef}
               className="h-full w-full cursor-grab active:cursor-grabbing"
