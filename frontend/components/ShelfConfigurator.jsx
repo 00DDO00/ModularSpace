@@ -335,7 +335,10 @@ export default function ShelfConfigurator() {
         });
 
         const wallThickness = 0.02;
-        const wallInset = rodThickness * 2;
+        const coverageOffset = rodThickness * 2;
+        const lateralThickness = wallThickness + coverageOffset;
+        const verticalThickness = wallThickness + coverageOffset;
+        const depthThickness = wallThickness + coverageOffset;
 
         // Get custom dimensions for this box (or use defaults)
         const dims = boxDimensions.get(key) || { left: 0, right: 0, top: 0, bottom: 0 };
@@ -350,17 +353,21 @@ export default function ShelfConfigurator() {
         const boxCenterX = (boxLeft + boxRight) / 2;
         const boxCenterY = (boxBottom + boxTop) / 2;
 
+        const expandedWidth = boxWidth + coverageOffset * 2;
+        const expandedHeight = boxHeight + coverageOffset * 2;
+        const expandedDepth = depth + coverageOffset * 2;
+
         // Back wall
         const backGeometry = new THREE.BoxGeometry(
-          boxWidth - wallInset * 2,
-          boxHeight - wallInset * 2,
-          wallThickness
+          expandedWidth,
+          expandedHeight,
+          depthThickness
         );
         const backWall = new THREE.Mesh(backGeometry, wallMaterial.clone());
         backWall.position.set(
           boxCenterX,
           boxCenterY,
-          -depth / 2
+          -depth / 2 - depthThickness / 2
         );
         backWall.castShadow = true;
         backWall.receiveShadow = true;
@@ -368,14 +375,14 @@ export default function ShelfConfigurator() {
 
         // Bottom wall
         const bottomGeometry = new THREE.BoxGeometry(
-          boxWidth - wallInset * 2,
-          wallThickness,
-          depth - wallInset
+          expandedWidth,
+          verticalThickness,
+          expandedDepth
         );
         const bottomWall = new THREE.Mesh(bottomGeometry, wallMaterial.clone());
         bottomWall.position.set(
           boxCenterX,
-          boxBottom + wallInset,
+          boxBottom - verticalThickness / 2,
           0
         );
         bottomWall.castShadow = true;
@@ -384,13 +391,13 @@ export default function ShelfConfigurator() {
 
         // Left wall
         const leftGeometry = new THREE.BoxGeometry(
-          wallThickness,
-          boxHeight - wallInset * 2,
-          depth - wallInset
+          lateralThickness,
+          expandedHeight,
+          expandedDepth
         );
         const leftWall = new THREE.Mesh(leftGeometry, wallMaterial.clone());
         leftWall.position.set(
-          boxLeft + wallInset,
+          boxLeft - lateralThickness / 2,
           boxCenterY,
           0
         );
@@ -400,13 +407,13 @@ export default function ShelfConfigurator() {
 
         // Right wall
         const rightGeometry = new THREE.BoxGeometry(
-          wallThickness,
-          boxHeight - wallInset * 2,
-          depth - wallInset
+          lateralThickness,
+          expandedHeight,
+          expandedDepth
         );
         const rightWall = new THREE.Mesh(rightGeometry, wallMaterial.clone());
         rightWall.position.set(
-          boxRight - wallInset,
+          boxRight + lateralThickness / 2,
           boxCenterY,
           0
         );
@@ -416,14 +423,14 @@ export default function ShelfConfigurator() {
 
         // Top wall
         const topGeometry = new THREE.BoxGeometry(
-          boxWidth - wallInset * 2,
-          wallThickness,
-          depth - wallInset
+          expandedWidth,
+          verticalThickness,
+          expandedDepth
         );
         const topWall = new THREE.Mesh(topGeometry, wallMaterial.clone());
         topWall.position.set(
           boxCenterX,
-          boxTop - wallInset,
+          boxTop + verticalThickness / 2,
           0
         );
         topWall.castShadow = true;
@@ -432,15 +439,15 @@ export default function ShelfConfigurator() {
 
         // Front wall (optional - makes it fully enclosed)
         const frontGeometry = new THREE.BoxGeometry(
-          boxWidth - wallInset * 2,
-          boxHeight - wallInset * 2,
-          wallThickness
+          expandedWidth,
+          expandedHeight,
+          depthThickness
         );
         const frontWall = new THREE.Mesh(frontGeometry, wallMaterial.clone());
         frontWall.position.set(
           boxCenterX,
           boxCenterY,
-          depth / 2
+          depth / 2 + depthThickness / 2
         );
         frontWall.castShadow = true;
         frontWall.receiveShadow = true;
