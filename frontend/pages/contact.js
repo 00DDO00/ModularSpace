@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Mail, Phone, MapPin, Send } from 'lucide-react';
 
 export default function Contact() {
@@ -10,16 +10,35 @@ export default function Contact() {
     message: '',
   });
   const [status, setStatus] = useState('');
+  const apiBase = useMemo(
+    () => process.env.NEXT_PUBLIC_API_BASE || 'https://modularspace.onrender.com',
+    []
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus('sending');
 
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${apiBase}/api/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit contact form');
+      }
+
       setStatus('success');
       setFormData({ name: '', email: '', subject: '', message: '' });
       setTimeout(() => setStatus(''), 3000);
-    }, 1000);
+    } catch (error) {
+      console.error('Contact form submission failed:', error);
+      setStatus('error');
+    }
   };
 
   const handleChange = (e) => {
@@ -149,6 +168,11 @@ export default function Contact() {
                 {status === 'success' && (
                   <div className="border-2 border-dhbBlue bg-background px-4 py-3 text-sm text-primary">
                     Thank you. Our studio liaison will reply within one business day.
+                  </div>
+                )}
+                {status === 'error' && (
+                  <div className="border-2 border-red-500 bg-background px-4 py-3 text-sm text-primary">
+                    Something went wrong while sending your message. Please retry in a moment.
                   </div>
                 )}
               </form>
