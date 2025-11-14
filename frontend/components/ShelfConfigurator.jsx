@@ -1,6 +1,18 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Grid, Square, Trash2, RotateCcw, Copy, Box, Eye } from 'lucide-react';
 import * as THREE from 'three';
+
+const createCells = (rows, cols, predicate = () => true) => {
+  const result = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (predicate(row, col)) {
+        result.push(`${row}-${col}`);
+      }
+    }
+  }
+  return result;
+};
 
 export default function ShelfConfigurator() {
   const [gridSize, setGridSize] = useState({ rows: 8, cols: 8 });
@@ -48,6 +60,164 @@ export default function ShelfConfigurator() {
   const animationRef = useRef(null);
   
   const colors = ['#004996', '#F2B705', '#E2E4F3', '#1A1C2E', '#6B6F88', '#8C7851', '#2F3246', '#C1C3D7'];
+  const minZoomDistance = 5;
+  const maxZoomDistance = 25;
+
+  const templates = useMemo(() => {
+    const atriumActive = createCells(8, 8, (r, c) =>
+      r === 0 ||
+      r === 7 ||
+      c === 0 ||
+      c === 7 ||
+      ((c === 3 || c === 4) && r >= 2 && r <= 5)
+    );
+
+    const galleryActive = createCells(8, 8, (r, c) =>
+      c === 1 ||
+      c === 6 ||
+      (r >= 3 && r <= 5 && c >= 2 && c <= 5)
+    );
+
+    const cascadeActive = [];
+    for (let row = 0; row < 6; row++) {
+      for (let col = 0; col < 10; col++) {
+        if (col >= row && col <= row + 4) {
+          cascadeActive.push(`${row}-${col}`);
+        }
+      }
+    }
+
+    const vaultActive = createCells(7, 7, (r, c) =>
+      r === 3 ||
+      c === 3 ||
+      ((r === 1 || r === 5) && c >= 1 && c <= 5)
+    );
+
+    const serpentineActive = createCells(8, 8, (r, c) => {
+      if (r < 2) return c <= 5;
+      if (r < 4) return c >= 2 && c <= 7;
+      if (r < 6) return c <= 4;
+      return c >= 1 && c <= 6;
+    });
+
+    return [
+      {
+        id: 'atrium',
+        name: 'Atrium Archive',
+        description: 'Perimeter gallery with open core spines.',
+        gridSize: { rows: 8, cols: 8 },
+        activeCells: atriumActive,
+        coloredCells: [
+          { key: '0-1', color: '#004996' },
+          { key: '0-6', color: '#F2B705' },
+          { key: '7-2', color: '#E2E4F3' },
+          { key: '7-5', color: '#6B6F88' },
+          { key: '3-3', color: '#E2E4F3' },
+          { key: '4-3', color: '#004996' },
+        ],
+        boxDims: [],
+        wallSettings: [],
+        features: ['Perimeter frame', 'Hidden fronts', 'Tiered crown'],
+      },
+      {
+        id: 'gallery',
+        name: 'Gallery Spine',
+        description: 'Dual towers joined by a suspended spine.',
+        gridSize: { rows: 8, cols: 8 },
+        activeCells: galleryActive,
+        coloredCells: [
+          { key: '3-3', color: '#004996' },
+          { key: '4-4', color: '#F2B705' },
+          { key: '5-2', color: '#E2E4F3' },
+          { key: '3-5', color: '#1A1C2E' },
+          { key: '4-3', color: '#2F3246' },
+          { key: '4-5', color: '#6B6F88' },
+        ],
+        boxDims: [],
+        wallSettings: [],
+        features: ['Dual spines', 'Hover plinth', 'Reveal niches'],
+      },
+      {
+        id: 'cascade',
+        name: 'Cascade Storage',
+        description: 'Diagonal cascade with stepped volumes.',
+        gridSize: { rows: 6, cols: 10 },
+        activeCells: cascadeActive,
+        coloredCells: [
+          { key: '0-2', color: '#E2E4F3' },
+          { key: '1-3', color: '#F2B705' },
+          { key: '2-4', color: '#004996' },
+          { key: '3-5', color: '#6B6F88' },
+          { key: '4-6', color: '#F2B705' },
+          { key: '5-7', color: '#004996' },
+        ],
+        boxDims: [],
+        wallSettings: [],
+        features: ['Diagonal cascade', 'Layered heights', 'Soft reveals'],
+      },
+      {
+        id: 'vault',
+        name: 'Vault Display',
+        description: 'Cross-shaped vault with translucent bays.',
+        gridSize: { rows: 7, cols: 7 },
+        activeCells: vaultActive,
+        coloredCells: [
+          { key: '3-3', color: '#004996' },
+          { key: '1-3', color: '#F2B705' },
+          { key: '5-3', color: '#E2E4F3' },
+          { key: '3-2', color: '#6B6F88' },
+          { key: '3-4', color: '#F2B705' },
+        ],
+        boxDims: [],
+        wallSettings: [],
+        features: ['Central vault', 'Translucent bays', 'Monumental cross'],
+      },
+      {
+        id: 'serpentine',
+        name: 'Serpentine Loft',
+        description: 'S-curve shelving with color blocking.',
+        gridSize: { rows: 8, cols: 8 },
+        activeCells: serpentineActive,
+        coloredCells: [
+          { key: '0-2', color: '#E2E4F3' },
+          { key: '0-3', color: '#2F3246' },
+          { key: '1-2', color: '#1A1C2E' },
+          { key: '1-3', color: '#E2E4F3' },
+          { key: '1-4', color: '#1A1C2E' },
+          { key: '2-3', color: '#F2B705' },
+          { key: '3-2', color: '#004996' },
+          { key: '3-3', color: '#1A1C2E' },
+          { key: '3-4', color: '#E2E4F3' },
+          { key: '4-1', color: '#1A1C2E' },
+          { key: '4-2', color: '#6B6F88' },
+          { key: '5-4', color: '#E2E4F3' },
+          { key: '5-5', color: '#6B6F88' },
+          { key: '6-4', color: '#1A1C2E' },
+          { key: '6-5', color: '#004996' },
+          { key: '6-6', color: '#E2E4F3' },
+          { key: '7-4', color: '#2F3246' },
+          { key: '7-5', color: '#E2E4F3' },
+        ],
+        boxDims: [],
+        wallSettings: [
+          { key: '0-2', wallType: 'front', props: { visible: false } },
+          { key: '0-3', wallType: 'front', props: { visible: false } },
+          { key: '1-2', wallType: 'right', props: { visible: false } },
+          { key: '1-4', wallType: 'left', props: { visible: false } },
+          { key: '2-3', wallType: 'front', props: { opacity: 0.2 } },
+          { key: '3-2', wallType: 'front', props: { visible: false } },
+          { key: '3-4', wallType: 'front', props: { visible: false } },
+          { key: '4-1', wallType: 'front', props: { visible: false } },
+          { key: '4-2', wallType: 'front', props: { opacity: 0.6 } },
+          { key: '5-4', wallType: 'back', props: { opacity: 0.3 } },
+          { key: '6-4', wallType: 'front', props: { visible: false } },
+          { key: '6-5', wallType: 'front', props: { visible: false } },
+          { key: '7-4', wallType: 'front', props: { visible: false } },
+        ],
+        features: ['Serpentine flow', 'Color blocking', 'Varied depths'],
+      },
+    ];
+  }, []);
 
   const getCellKey = (row, col) => `${row}-${col}`;
   
@@ -75,6 +245,31 @@ export default function ShelfConfigurator() {
       e.stopPropagation();
       setSelectedWall({ boxKey, wallType });
     }
+  };
+
+  const applyTemplate = (template) => {
+    const {
+      gridSize: templateGrid,
+      activeCells = [],
+      coloredCells = [],
+      boxDims = [],
+      wallSettings = [],
+    } = template;
+
+    const combinedActive = new Set(activeCells);
+    coloredCells.forEach(({ key }) => combinedActive.add(key));
+    boxDims.forEach(({ key }) => combinedActive.add(key));
+    wallSettings.forEach(({ key }) => combinedActive.add(key));
+
+    setGridSize(templateGrid);
+    setBoxes(combinedActive);
+    setColoredItems(new Map(coloredCells.map(({ key, color }) => [key, color])));
+    setBoxDimensions(new Map(boxDims.map(({ key, dims }) => [key, dims])));
+    setWallProperties(
+      new Map(wallSettings.map(({ key, wallType, props }) => [`${key}-${wallType}`, props]))
+    );
+    setSelectedWall(null);
+    setEditorMode('structure');
   };
 
   // Initialize 3D scene
@@ -210,7 +405,24 @@ export default function ShelfConfigurator() {
       mouseDown = false;
     };
 
+    const onWheel = (e) => {
+      e.preventDefault();
+      const camera = cameraRef.current;
+      if (!camera) return;
+
+      const currentDistance = camera.position.length();
+      const newDistance = THREE.MathUtils.clamp(
+        currentDistance + e.deltaY * 0.01,
+        minZoomDistance,
+        maxZoomDistance
+      );
+
+      const direction = camera.position.clone().normalize();
+      camera.position.copy(direction.multiplyScalar(newDistance));
+    };
+
     canvasRef.current.addEventListener('mousedown', onMouseDown);
+    canvasRef.current.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
@@ -230,11 +442,12 @@ export default function ShelfConfigurator() {
       }
       window.removeEventListener('resize', handleResize);
       canvasRef.current?.removeEventListener('mousedown', onMouseDown);
+      canvasRef.current?.removeEventListener('wheel', onWheel);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       renderer.dispose();
     };
-  }, [editorMode]);
+  }, [editorMode, minZoomDistance, maxZoomDistance]);
 
   // Update 3D shelf when boxes change
   useEffect(() => {
@@ -381,103 +594,101 @@ export default function ShelfConfigurator() {
     // ========== ADD COLORED WALLS FOR FILLED COMPARTMENTS ==========
     coloredItems.forEach((color, key) => {
       const [row, col] = key.split('-').map(Number);
-      if (boxes.has(key)) {
-        const wallThickness = 0.02;
-        const coverageOffset = rodThickness * 2;
-        const lateralThickness = wallThickness + coverageOffset;
-        const verticalThickness = wallThickness + coverageOffset;
-        const depthThickness = wallThickness + coverageOffset;
+      const wallThickness = 0.02;
+      const coverageOffset = rodThickness * 2;
+      const lateralThickness = wallThickness + coverageOffset;
+      const verticalThickness = wallThickness + coverageOffset;
+      const depthThickness = wallThickness + coverageOffset;
 
-        // Get custom dimensions for this box (or use defaults)
-        const dims = boxDimensions.get(key) || { left: 0, right: 0, top: 0, bottom: 0 };
+      // Get custom dimensions for this box (or use defaults)
+      const dims = boxDimensions.get(key) || { left: 0, right: 0, top: 0, bottom: 0 };
+      
+      // Calculate adjusted dimensions
+      const boxLeft = offsetX + col * boxSize + dims.left * boxSize;
+      const boxRight = offsetX + (col + 1) * boxSize + dims.right * boxSize;
+      const boxBottom = offsetY + row * boxSize + dims.bottom * boxSize;
+      const boxTop = offsetY + (row + 1) * boxSize + dims.top * boxSize;
+      const boxWidth = boxRight - boxLeft;
+      const boxHeight = boxTop - boxBottom;
+      const boxCenterX = (boxLeft + boxRight) / 2;
+      const boxCenterY = (boxBottom + boxTop) / 2;
+
+      const expandedWidth = boxWidth + coverageOffset * 2;
+      const expandedHeight = boxHeight + coverageOffset * 2;
+      const expandedDepth = depth + coverageOffset * 2;
+
+      // Wall types and their properties
+      const wallTypes = [
+        { 
+          type: 'back', 
+          geometry: new THREE.BoxGeometry(expandedWidth, expandedHeight, depthThickness),
+          position: [boxCenterX, boxCenterY, -depth / 2 - depthThickness / 2]
+        },
+        { 
+          type: 'bottom', 
+          geometry: new THREE.BoxGeometry(expandedWidth, verticalThickness, expandedDepth),
+          position: [boxCenterX, boxBottom - verticalThickness / 2, 0]
+        },
+        { 
+          type: 'left', 
+          geometry: new THREE.BoxGeometry(lateralThickness, expandedHeight, expandedDepth),
+          position: [boxLeft - lateralThickness / 2, boxCenterY, 0]
+        },
+        { 
+          type: 'right', 
+          geometry: new THREE.BoxGeometry(lateralThickness, expandedHeight, expandedDepth),
+          position: [boxRight + lateralThickness / 2, boxCenterY, 0]
+        },
+        { 
+          type: 'top', 
+          geometry: new THREE.BoxGeometry(expandedWidth, verticalThickness, expandedDepth),
+          position: [boxCenterX, boxTop + verticalThickness / 2, 0]
+        },
+        { 
+          type: 'front', 
+          geometry: new THREE.BoxGeometry(expandedWidth, expandedHeight, depthThickness),
+          position: [boxCenterX, boxCenterY, depth / 2 + depthThickness / 2]
+        }
+      ];
+
+      wallTypes.forEach(({ type, geometry, position }) => {
+        // Get individual wall properties
+        const wallColor = getWallProperty(key, type, 'color', color);
+        const wallVisible = getWallProperty(key, type, 'visible', true);
+        const wallOpacity = getWallProperty(key, type, 'opacity', 1);
         
-        // Calculate adjusted dimensions
-        const boxLeft = offsetX + col * boxSize + dims.left * boxSize;
-        const boxRight = offsetX + (col + 1) * boxSize + dims.right * boxSize;
-        const boxBottom = offsetY + row * boxSize + dims.bottom * boxSize;
-        const boxTop = offsetY + (row + 1) * boxSize + dims.top * boxSize;
-        const boxWidth = boxRight - boxLeft;
-        const boxHeight = boxTop - boxBottom;
-        const boxCenterX = (boxLeft + boxRight) / 2;
-        const boxCenterY = (boxBottom + boxTop) / 2;
-
-        const expandedWidth = boxWidth + coverageOffset * 2;
-        const expandedHeight = boxHeight + coverageOffset * 2;
-        const expandedDepth = depth + coverageOffset * 2;
-
-        // Wall types and their properties
-        const wallTypes = [
-          { 
-            type: 'back', 
-            geometry: new THREE.BoxGeometry(expandedWidth, expandedHeight, depthThickness),
-            position: [boxCenterX, boxCenterY, -depth / 2 - depthThickness / 2]
-          },
-          { 
-            type: 'bottom', 
-            geometry: new THREE.BoxGeometry(expandedWidth, verticalThickness, expandedDepth),
-            position: [boxCenterX, boxBottom - verticalThickness / 2, 0]
-          },
-          { 
-            type: 'left', 
-            geometry: new THREE.BoxGeometry(lateralThickness, expandedHeight, expandedDepth),
-            position: [boxLeft - lateralThickness / 2, boxCenterY, 0]
-          },
-          { 
-            type: 'right', 
-            geometry: new THREE.BoxGeometry(lateralThickness, expandedHeight, expandedDepth),
-            position: [boxRight + lateralThickness / 2, boxCenterY, 0]
-          },
-          { 
-            type: 'top', 
-            geometry: new THREE.BoxGeometry(expandedWidth, verticalThickness, expandedDepth),
-            position: [boxCenterX, boxTop + verticalThickness / 2, 0]
-          },
-          { 
-            type: 'front', 
-            geometry: new THREE.BoxGeometry(expandedWidth, expandedHeight, depthThickness),
-            position: [boxCenterX, boxCenterY, depth / 2 + depthThickness / 2]
-          }
-        ];
-
-        wallTypes.forEach(({ type, geometry, position }) => {
-          // Get individual wall properties
-          const wallColor = getWallProperty(key, type, 'color', color);
-          const wallVisible = getWallProperty(key, type, 'visible', true);
-          const wallOpacity = getWallProperty(key, type, 'opacity', 1);
-          
-          if (!wallVisible) return; // Skip if wall is hidden
-          
-          const wallMaterial = new THREE.MeshStandardMaterial({
-            color: wallColor,
-            roughness: 0.6,
-            metalness: 0.2,
-            transparent: wallOpacity < 1,
-            opacity: wallOpacity
-          });
-
-          const wall = new THREE.Mesh(geometry, wallMaterial);
-          wall.position.set(...position);
-          wall.castShadow = true;
-          wall.receiveShadow = true;
-          
-          // Add user data for selection
-          wall.userData = { boxKey: key, wallType: type };
-          
-          // Highlight if selected
-          if (selectedWall && selectedWall.boxKey === key && selectedWall.wallType === type) {
-            const highlightMaterial = new THREE.MeshStandardMaterial({
-              color: 0xF7B801,
-              roughness: 0.3,
-              metalness: 0.5,
-              emissive: 0xF7B801,
-              emissiveIntensity: 0.3
-            });
-            wall.material = highlightMaterial;
-          }
-          
-          shelfGroupRef.current.add(wall);
+        if (!wallVisible) return; // Skip if wall is hidden
+        
+        const wallMaterial = new THREE.MeshStandardMaterial({
+          color: wallColor,
+          roughness: 0.6,
+          metalness: 0.2,
+          transparent: wallOpacity < 1,
+          opacity: wallOpacity
         });
-      }
+
+        const wall = new THREE.Mesh(geometry, wallMaterial);
+        wall.position.set(...position);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        
+        // Add user data for selection
+        wall.userData = { boxKey: key, wallType: type };
+        
+        // Highlight if selected
+        if (selectedWall && selectedWall.boxKey === key && selectedWall.wallType === type) {
+          const highlightMaterial = new THREE.MeshStandardMaterial({
+            color: 0xF7B801,
+            roughness: 0.3,
+            metalness: 0.5,
+            emissive: 0xF7B801,
+            emissiveIntensity: 0.3
+          });
+          wall.material = highlightMaterial;
+        }
+        
+        shelfGroupRef.current.add(wall);
+      });
     });
 
   }, [boxes, gridSize, coloredItems, boxDimensions, wallProperties, selectedWall, getWallProperty]);
@@ -490,10 +701,7 @@ export default function ShelfConfigurator() {
       setIsDragging(true);
       toggleBox(row, col, newMode);
     } else if (editorMode === 'fill') {
-      const key = getCellKey(row, col);
-      if (boxes.has(key)) {
-        addColoredItem(row, col);
-      }
+      addColoredItem(row, col);
     }
   };
 
@@ -517,18 +725,6 @@ export default function ShelfConfigurator() {
         newSet.add(key);
       } else {
         newSet.delete(key);
-        // Remove colored item if box is removed
-        setColoredItems(items => {
-          const newItems = new Map(items);
-          newItems.delete(key);
-          return newItems;
-        });
-        // Remove custom dimensions if box is removed
-        setBoxDimensions(dims => {
-          const newDims = new Map(dims);
-          newDims.delete(key);
-          return newDims;
-        });
       }
       return newSet;
     });
@@ -914,62 +1110,65 @@ export default function ShelfConfigurator() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="border-2 border-line bg-surface p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Box className="h-5 w-5 text-dhbBlue" />
-              <h3 className="text-lg uppercase">3D viewport</h3>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="border-2 border-line bg-surface p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Box className="h-5 w-5 text-dhbBlue" />
+                <h3 className="text-lg uppercase">3D viewport</h3>
+              </div>
+              <p className="text-xs tracking-[0.3rem] text-muted">
+                {editorMode === 'editWalls' ? 'CLICK WALLS' : 'DRAG · SCROLL TO ZOOM'}
+              </p>
             </div>
-            <p className="text-xs tracking-[0.3rem] text-muted">{editorMode === 'editWalls' ? 'CLICK WALLS' : 'DRAG TO ROTATE'}</p>
+            <div className="relative border-2 border-line bg-background" style={{ height: '500px' }}>
+              <canvas
+                ref={canvasRef}
+                className="h-full w-full cursor-grab active:cursor-grabbing"
+                style={{ display: 'block' }}
+              />
+            </div>
           </div>
-          <div className="relative border-2 border-line bg-background" style={{ height: '500px' }}>
-            <canvas
-              ref={canvasRef}
-              className="h-full w-full cursor-grab active:cursor-grabbing"
-              style={{ display: 'block' }}
-            />
-          </div>
-        </div>
 
-        <div className="border-2 border-line bg-surface p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <Grid className="h-5 w-5 text-dhbBlue" />
-            <h3 className="text-lg uppercase">2D editor</h3>
-          </div>
-          <div className="flex justify-center">
-            <div
-              ref={gridRef}
-              className="inline-block border-2 border-line bg-background p-6"
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onMouseMove={handleWallDrag}
-              style={{ userSelect: 'none' }}
-            >
-              {editorMode === 'resize' ? (
-                <div
-                  className="relative border border-line"
-                  style={{
-                    width: `${gridSize.cols * 40}px`,
-                    height: `${gridSize.rows * 40}px`,
-                    backgroundColor: 'rgba(32, 34, 52, 0.65)',
-                  }}
-                >
-                  {Array.from({ length: gridSize.rows }, (_, row) =>
-                    Array.from({ length: gridSize.cols }, (_, col) => {
-                      const key = getCellKey(row, col);
-                      const isActive = boxes.has(key);
-                      const hasWalls = coloredItems.has(key);
-                      const wallColor = coloredItems.get(key);
-                      const dims = boxDimensions.get(key) || { left: 0, right: 0, top: 0, bottom: 0 };
+          <div className="border-2 border-line bg-surface p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <Grid className="h-5 w-5 text-dhbBlue" />
+              <h3 className="text-lg uppercase">2D editor</h3>
+            </div>
+            <div className="flex justify-center">
+              <div
+                ref={gridRef}
+                className="inline-block border-2 border-line bg-background p-6"
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onMouseMove={handleWallDrag}
+                style={{ userSelect: 'none' }}
+              >
+                {editorMode === 'resize' ? (
+                  <div
+                    className="relative border border-line"
+                    style={{
+                      width: `${gridSize.cols * 40}px`,
+                      height: `${gridSize.rows * 40}px`,
+                      backgroundColor: 'rgba(32, 34, 52, 0.65)',
+                    }}
+                  >
+                    {Array.from({ length: gridSize.rows }, (_, row) =>
+                      Array.from({ length: gridSize.cols }, (_, col) => {
+                        const key = getCellKey(row, col);
+                        const isActive = boxes.has(key);
+                        const hasWalls = coloredItems.has(key);
+                        const wallColor = coloredItems.get(key);
+                        const dims = boxDimensions.get(key) || { left: 0, right: 0, top: 0, bottom: 0 };
 
-                      const boxLeft = col * 40 + dims.left * 40;
-                      const boxTop = row * 40 + dims.bottom * 40;
-                      const boxWidth = 40 + (dims.right - dims.left) * 40;
-                      const boxHeight = 40 + (dims.top - dims.bottom) * 40;
+                        const boxLeft = col * 40 + dims.left * 40;
+                        const boxTop = row * 40 + dims.bottom * 40;
+                        const boxWidth = 40 + (dims.right - dims.left) * 40;
+                        const boxHeight = 40 + (dims.top - dims.bottom) * 40;
 
-                      return (
-                        <div key={key}>
+                        return (
+                          <div key={key}>
                           {isActive && (
                             <div
                               className="absolute pointer-events-none"
@@ -983,212 +1182,269 @@ export default function ShelfConfigurator() {
                             />
                           )}
 
-                          {hasWalls && isActive && (
-                            <>
-                              <div
-                                className="absolute transition-all duration-100"
-                                style={{
-                                  left: `${boxLeft}px`,
-                                  top: `${boxTop}px`,
-                                  width: `${boxWidth}px`,
-                                  height: `${boxHeight}px`,
-                                  backgroundColor: wallColor,
-                                  opacity: 0.65,
-                                  border: '2px solid ' + wallColor,
-                                }}
-                              />
+                          {isActive && (
+                              <>
+                                <div
+                                  className="absolute transition-all duration-100"
+                                  style={{
+                                    left: `${boxLeft}px`,
+                                    top: `${boxTop}px`,
+                                    width: `${boxWidth}px`,
+                                    height: `${boxHeight}px`,
+                                  backgroundColor: hasWalls ? wallColor : 'rgba(111, 116, 137, 0.35)',
+                                  opacity: hasWalls ? 0.65 : 0.35,
+                                  border: `2px solid ${hasWalls ? wallColor : 'rgba(111, 116, 137, 0.5)'}`,
+                                  }}
+                                />
 
-                              <div
-                                className="absolute cursor-ew-resize transition-colors"
-                                style={{
-                                  left: `${boxLeft - 2}px`,
-                                  top: `${boxTop}px`,
-                                  width: '4px',
-                                  height: `${boxHeight}px`,
-                                  backgroundColor:
+                                <div
+                                  className="absolute cursor-ew-resize transition-colors"
+                                  style={{
+                                    left: `${boxLeft - 2}px`,
+                                    top: `${boxTop}px`,
+                                    width: '4px',
+                                    height: `${boxHeight}px`,
+                                    backgroundColor:
                                     draggingWall?.boxKey === key && draggingWall?.wallType === 'left'
-                                      ? '#004996'
-                                      : '#1f2336',
-                                }}
-                                onMouseDown={(e) => handleWallMouseDown(key, 'left', e)}
-                              />
-                              <div
-                                className="absolute cursor-ew-resize transition-colors"
-                                style={{
-                                  left: `${boxLeft + boxWidth - 2}px`,
-                                  top: `${boxTop}px`,
-                                  width: '4px',
-                                  height: `${boxHeight}px`,
-                                  backgroundColor:
+                                        ? '#004996'
+                                        : '#1f2336',
+                                  }}
+                                  onMouseDown={(e) => handleWallMouseDown(key, 'left', e)}
+                                />
+                                <div
+                                  className="absolute cursor-ew-resize transition-colors"
+                                  style={{
+                                    left: `${boxLeft + boxWidth - 2}px`,
+                                    top: `${boxTop}px`,
+                                    width: '4px',
+                                    height: `${boxHeight}px`,
+                                    backgroundColor:
                                     draggingWall?.boxKey === key && draggingWall?.wallType === 'right'
-                                      ? '#004996'
-                                      : '#1f2336',
-                                }}
-                                onMouseDown={(e) => handleWallMouseDown(key, 'right', e)}
-                              />
-                              <div
-                                className="absolute cursor-ns-resize transition-colors"
-                                style={{
-                                  left: `${boxLeft}px`,
-                                  top: `${boxTop + boxHeight - 2}px`,
-                                  width: `${boxWidth}px`,
-                                  height: '4px',
-                                  backgroundColor:
+                                        ? '#004996'
+                                        : '#1f2336',
+                                  }}
+                                  onMouseDown={(e) => handleWallMouseDown(key, 'right', e)}
+                                />
+                                <div
+                                  className="absolute cursor-ns-resize transition-colors"
+                                  style={{
+                                    left: `${boxLeft}px`,
+                                    top: `${boxTop + boxHeight - 2}px`,
+                                    width: `${boxWidth}px`,
+                                    height: '4px',
+                                    backgroundColor:
                                     draggingWall?.boxKey === key && draggingWall?.wallType === 'top'
-                                      ? '#004996'
-                                      : '#1f2336',
-                                }}
-                                onMouseDown={(e) => handleWallMouseDown(key, 'top', e)}
-                              />
-                              <div
-                                className="absolute cursor-ns-resize transition-colors"
-                                style={{
-                                  left: `${boxLeft}px`,
-                                  top: `${boxTop - 2}px`,
-                                  width: `${boxWidth}px`,
-                                  height: '4px',
-                                  backgroundColor:
+                                        ? '#004996'
+                                        : '#1f2336',
+                                  }}
+                                  onMouseDown={(e) => handleWallMouseDown(key, 'top', e)}
+                                />
+                                <div
+                                  className="absolute cursor-ns-resize transition-colors"
+                                  style={{
+                                    left: `${boxLeft}px`,
+                                    top: `${boxTop - 2}px`,
+                                    width: `${boxWidth}px`,
+                                    height: '4px',
+                                    backgroundColor:
                                     draggingWall?.boxKey === key && draggingWall?.wallType === 'bottom'
-                                      ? '#004996'
-                                      : '#1f2336',
-                                }}
-                                onMouseDown={(e) => handleWallMouseDown(key, 'bottom', e)}
-                              />
-                            </>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              ) : editorMode === 'editWalls' ? (
-                <div
-                  className="relative border border-line"
-                  style={{
-                    width: `${gridSize.cols * 40}px`,
-                    height: `${gridSize.rows * 40}px`,
-                    backgroundColor: 'rgba(32, 34, 52, 0.65)',
-                  }}
-                >
-                  {Array.from({ length: gridSize.rows }, (_, row) =>
-                    Array.from({ length: gridSize.cols }, (_, col) => {
-                      const key = getCellKey(row, col);
-                      const isActive = boxes.has(key);
-                      const hasWalls = coloredItems.has(key);
-                      const baseColor = coloredItems.get(key);
-
-                      if (!hasWalls || !isActive) return null;
-
-                      return (
-                        <div
-                          key={key}
-                          className="absolute"
-                          style={{ left: `${col * 40}px`, top: `${row * 40}px`, width: '40px', height: '40px' }}
-                        >
-                          <div
-                            className="absolute cursor-pointer transition-opacity hover:opacity-80"
-                            style={{
-                              left: '0px',
-                              top: '4px',
-                              width: '6px',
-                              height: '32px',
-                              backgroundColor: getWallProperty(key, 'left', 'color', baseColor),
-                              opacity: getWallProperty(key, 'left', 'visible', true) ? getWallProperty(key, 'left', 'opacity', 1) : 0.2,
-                              border: selectedWall?.boxKey === key && selectedWall?.wallType === 'left' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
-                            }}
-                            onClick={(e) => handleWallClick(key, 'left', e)}
-                          />
-                          <div
-                            className="absolute cursor-pointer transition-opacity hover:opacity-80"
-                            style={{
-                              right: '0px',
-                              top: '4px',
-                              width: '6px',
-                              height: '32px',
-                              backgroundColor: getWallProperty(key, 'right', 'color', baseColor),
-                              opacity: getWallProperty(key, 'right', 'visible', true) ? getWallProperty(key, 'right', 'opacity', 1) : 0.2,
-                              border: selectedWall?.boxKey === key && selectedWall?.wallType === 'right' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
-                            }}
-                            onClick={(e) => handleWallClick(key, 'right', e)}
-                          />
-                          <div
-                            className="absolute cursor-pointer transition-opacity hover:opacity-80"
-                            style={{
-                              left: '4px',
-                              top: '0px',
-                              width: '32px',
-                              height: '6px',
-                              backgroundColor: getWallProperty(key, 'top', 'color', baseColor),
-                              opacity: getWallProperty(key, 'top', 'visible', true) ? getWallProperty(key, 'top', 'opacity', 1) : 0.2,
-                              border: selectedWall?.boxKey === key && selectedWall?.wallType === 'top' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
-                            }}
-                            onClick={(e) => handleWallClick(key, 'top', e)}
-                          />
-                          <div
-                            className="absolute cursor-pointer transition-opacity hover:opacity-80"
-                            style={{
-                              left: '4px',
-                              bottom: '0px',
-                              width: '32px',
-                              height: '6px',
-                              backgroundColor: getWallProperty(key, 'bottom', 'color', baseColor),
-                              opacity: getWallProperty(key, 'bottom', 'visible', true) ? getWallProperty(key, 'bottom', 'opacity', 1) : 0.2,
-                              border: selectedWall?.boxKey === key && selectedWall?.wallType === 'bottom' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
-                            }}
-                            onClick={(e) => handleWallClick(key, 'bottom', e)}
-                          />
-                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                            <div className="h-2 w-2 rounded-full bg-muted opacity-50" />
+                                        ? '#004996'
+                                        : '#1f2336',
+                                  }}
+                                  onMouseDown={(e) => handleWallMouseDown(key, 'bottom', e)}
+                                />
+                              </>
+                            )}
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              ) : (
-                <div
-                  className="grid gap-1"
-                  style={{
-                    gridTemplateColumns: `repeat(${gridSize.cols}, minmax(0, 1fr))`,
-                    gridTemplateRows: `repeat(${gridSize.rows}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {Array.from({ length: gridSize.rows }, (_, row) =>
-                    Array.from({ length: gridSize.cols }, (_, col) => {
-                      const key = getCellKey(row, col);
-                      const isActive = boxes.has(key);
-                      const hasItem = coloredItems.has(key);
-                      const itemColor = coloredItems.get(key);
-                      const dims = boxDimensions.get(key) || { left: 0, right: 0, top: 0, bottom: 0 };
-                      const hasCustomDims =
-                        dims.left !== 0 || dims.right !== 0 || dims.top !== 0 || dims.bottom !== 0;
+                        );
+                      })
+                    )}
+                  </div>
+                ) : editorMode === 'editWalls' ? (
+                  <div
+                    className="relative border border-line"
+                    style={{
+                      width: `${gridSize.cols * 40}px`,
+                      height: `${gridSize.rows * 40}px`,
+                      backgroundColor: 'rgba(32, 34, 52, 0.65)',
+                    }}
+                  >
+                    {Array.from({ length: gridSize.rows }, (_, row) =>
+                      Array.from({ length: gridSize.cols }, (_, col) => {
+                        const key = getCellKey(row, col);
+                        const hasWalls = coloredItems.has(key);
+                        const baseColor = coloredItems.get(key);
 
-                      return (
-                        <div
-                          key={key}
-                          onMouseDown={() => handleMouseDown(row, col)}
-                          onMouseEnter={() => handleMouseEnter(row, col)}
-                          className={`relative h-10 w-10 cursor-pointer border-2 transition-all ${
-                            isActive
-                              ? 'border-primary bg-surface'
-                              : 'border-dashed border-line bg-transparent'
-                          } ${editorMode === 'fill' && isActive ? 'hover:opacity-80' : ''}`}
-                          style={{
-                            backgroundColor: hasItem && isActive ? itemColor : undefined,
-                          }}
-                        >
-                          {hasCustomDims && isActive && (
-                            <div className="absolute inset-0 flex items-center justify-center text-[10px] tracking-[0.3rem] text-muted">
-                              RESIZE
+                        if (!hasWalls) return null;
+
+                        return (
+                          <div
+                            key={key}
+                            className="absolute"
+                            style={{ left: `${col * 40}px`, top: `${row * 40}px`, width: '40px', height: '40px' }}
+                          >
+                            <div
+                              className="absolute cursor-pointer transition-opacity hover:opacity-80"
+                              style={{
+                                left: '0px',
+                                top: '4px',
+                                width: '6px',
+                                height: '32px',
+                                backgroundColor: getWallProperty(key, 'left', 'color', baseColor),
+                                opacity: getWallProperty(key, 'left', 'visible', true) ? getWallProperty(key, 'left', 'opacity', 1) : 0.2,
+                                border: selectedWall?.boxKey === key && selectedWall?.wallType === 'left' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
+                              }}
+                              onClick={(e) => handleWallClick(key, 'left', e)}
+                            />
+                            <div
+                              className="absolute cursor-pointer transition-opacity hover:opacity-80"
+                              style={{
+                                right: '0px',
+                                top: '4px',
+                                width: '6px',
+                                height: '32px',
+                                backgroundColor: getWallProperty(key, 'right', 'color', baseColor),
+                                opacity: getWallProperty(key, 'right', 'visible', true) ? getWallProperty(key, 'right', 'opacity', 1) : 0.2,
+                                border: selectedWall?.boxKey === key && selectedWall?.wallType === 'right' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
+                              }}
+                              onClick={(e) => handleWallClick(key, 'right', e)}
+                            />
+                            <div
+                              className="absolute cursor-pointer transition-opacity hover:opacity-80"
+                              style={{
+                                left: '4px',
+                                top: '0px',
+                                width: '32px',
+                                height: '6px',
+                                backgroundColor: getWallProperty(key, 'top', 'color', baseColor),
+                                opacity: getWallProperty(key, 'top', 'visible', true) ? getWallProperty(key, 'top', 'opacity', 1) : 0.2,
+                                border: selectedWall?.boxKey === key && selectedWall?.wallType === 'top' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
+                              }}
+                              onClick={(e) => handleWallClick(key, 'top', e)}
+                            />
+                            <div
+                              className="absolute cursor-pointer transition-opacity hover:opacity-80"
+                              style={{
+                                left: '4px',
+                                bottom: '0px',
+                                width: '32px',
+                                height: '6px',
+                                backgroundColor: getWallProperty(key, 'bottom', 'color', baseColor),
+                                opacity: getWallProperty(key, 'bottom', 'visible', true) ? getWallProperty(key, 'bottom', 'opacity', 1) : 0.2,
+                                border: selectedWall?.boxKey === key && selectedWall?.wallType === 'bottom' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
+                              }}
+                              onClick={(e) => handleWallClick(key, 'bottom', e)}
+                            />
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                              <div className="h-2 w-2 rounded-full bg-muted opacity-50" />
                             </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className="grid gap-1"
+                    style={{
+                      gridTemplateColumns: `repeat(${gridSize.cols}, minmax(0, 1fr))`,
+                      gridTemplateRows: `repeat(${gridSize.rows}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {Array.from({ length: gridSize.rows }, (_, row) =>
+                      Array.from({ length: gridSize.cols }, (_, col) => {
+                        const key = getCellKey(row, col);
+                        const isActive = boxes.has(key);
+                        const hasItem = coloredItems.has(key);
+                        const itemColor = coloredItems.get(key);
+                        const dims = boxDimensions.get(key) || { left: 0, right: 0, top: 0, bottom: 0 };
+                        const hasCustomDims =
+                          dims.left !== 0 || dims.right !== 0 || dims.top !== 0 || dims.bottom !== 0;
+
+                        return (
+                          <div
+                            key={key}
+                            onMouseDown={() => handleMouseDown(row, col)}
+                            onMouseEnter={() => handleMouseEnter(row, col)}
+                            className={`relative h-10 w-10 cursor-pointer border-2 transition-all ${
+                              hasItem
+                                ? 'border-primary bg-surface'
+                                : isActive
+                                  ? 'border-line bg-background'
+                                  : 'border-dashed border-line bg-transparent'
+                            } ${editorMode === 'fill' ? 'hover:opacity-80' : ''}`}
+                            style={{
+                              backgroundColor: hasItem ? itemColor : undefined,
+                            }}
+                          >
+                            {hasCustomDims && hasItem && (
+                              <div className="absolute inset-0 flex items-center justify-center text-[10px] tracking-[0.3rem] text-muted">
+                                RESIZE
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
+        </div>
+
+        <div className="border-2 border-line bg-surface p-6">
+          <div className="mb-4">
+            <p className="text-xs tracking-[0.4rem] text-muted">TEMPLATES</p>
+            <h3 className="text-xl uppercase text-primary">Quickstart layouts</h3>
+            <p className="text-sm text-muted">
+              Load curated compositions that combine structure, enclosure, resizing, and wall edits.
+            </p>
+          </div>
+          <div className="space-y-4">
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => applyTemplate(template)}
+                className="w-full border-2 border-line bg-background p-4 text-left transition-transform hover:-translate-y-1 hover:border-primary"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase text-primary">{template.name}</p>
+                    <p className="text-xs text-muted">{template.description}</p>
+                  </div>
+                  <div className="text-right text-[11px] uppercase tracking-[0.25rem] text-muted">
+                    <p>
+                      {template.gridSize.rows}×{template.gridSize.cols}
+                    </p>
+                    <p>{template.activeCells.length} mods</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(template.features || []).map((feature) => (
+                    <span
+                      key={`${template.id}-${feature}`}
+                      className="border border-line px-2 py-1 text-[10px] tracking-[0.2rem] text-muted"
+                    >
+                      {feature.toUpperCase()}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-1">
+                  {(template.coloredCells || []).slice(0, 4).map(({ color }, idx) => (
+                    <span
+                      key={`${template.id}-color-${idx}`}
+                      className="h-3 w-6 border border-line"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                <div className="mt-4 text-right text-xs font-semibold tracking-[0.3rem] text-primary">
+                  LOAD LAYOUT
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </div>
