@@ -16,12 +16,16 @@ export default function ShelfConfigurator() {
   });
   
   // New state for modes
-  const [editorMode, setEditorMode] = useState('structure'); // 'structure', 'fill', 'resize'
+  const [editorMode, setEditorMode] = useState('structure'); // 'structure', 'fill', 'resize', 'editWalls'
   const [coloredItems, setColoredItems] = useState(new Map()); // Map of cell keys to colors
   const [selectedColor, setSelectedColor] = useState('#004996');
   
   // Custom dimensions for each box - stores offset adjustments
   const [boxDimensions, setBoxDimensions] = useState(new Map()); // Map of cell keys to { left, right, top, bottom }
+  
+  // Wall editing state
+  const [selectedWall, setSelectedWall] = useState(null); // { boxKey, wallType }
+  const [wallProperties, setWallProperties] = useState(new Map()); // Map of "boxKey-wallType" to { color, visible, opacity }
   
   // Wall positions for resize mode
   const [horizontalWalls, setHorizontalWalls] = useState(() => 
@@ -46,6 +50,32 @@ export default function ShelfConfigurator() {
   const colors = ['#004996', '#F2B705', '#E2E4F3', '#1A1C2E', '#6B6F88', '#8C7851', '#2F3246', '#C1C3D7'];
 
   const getCellKey = (row, col) => `${row}-${col}`;
+  
+  // Helper functions for wall properties
+  const getWallKey = (boxKey, wallType) => `${boxKey}-${wallType}`;
+  
+  const getWallProperty = (boxKey, wallType, property, defaultValue) => {
+    const wallKey = getWallKey(boxKey, wallType);
+    const props = wallProperties.get(wallKey);
+    return props ? (props[property] ?? defaultValue) : defaultValue;
+  };
+  
+  const setWallProperty = (boxKey, wallType, property, value) => {
+    const wallKey = getWallKey(boxKey, wallType);
+    setWallProperties(prev => {
+      const newProps = new Map(prev);
+      const currentProps = newProps.get(wallKey) || {};
+      newProps.set(wallKey, { ...currentProps, [property]: value });
+      return newProps;
+    });
+  };
+  
+  const handleWallClick = (boxKey, wallType, e) => {
+    if (editorMode === 'editWalls' && coloredItems.has(boxKey)) {
+      e.stopPropagation();
+      setSelectedWall({ boxKey, wallType });
+    }
+  };
 
   // Initialize 3D scene
   useEffect(() => {
@@ -134,6 +164,30 @@ export default function ShelfConfigurator() {
       mouseX = e.clientX;
       mouseY = e.clientY;
       autoRotate = false;
+      
+      // Check for wall click in edit mode
+      if (editorMode === 'editWalls') {
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const rect = canvasRef.current.getBoundingClientRect();
+        
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(shelfGroupRef.current.children);
+        
+        if (intersects.length > 0) {
+          const clickedObject = intersects[0].object;
+          if (clickedObject.userData.boxKey && clickedObject.userData.wallType) {
+            setSelectedWall({
+              boxKey: clickedObject.userData.boxKey,
+              wallType: clickedObject.userData.wallType
+            });
+            mouseDown = false; // Don't rotate when clicking walls
+          }
+        }
+      }
     };
 
     const onMouseMove = (e) => {
@@ -180,7 +234,7 @@ export default function ShelfConfigurator() {
       window.removeEventListener('mouseup', onMouseUp);
       renderer.dispose();
     };
-  }, []);
+  }, [editorMode]);
 
   // Update 3D shelf when boxes change
   useEffect(() => {
@@ -328,12 +382,6 @@ export default function ShelfConfigurator() {
     coloredItems.forEach((color, key) => {
       const [row, col] = key.split('-').map(Number);
       if (boxes.has(key)) {
-        const wallMaterial = new THREE.MeshStandardMaterial({
-          color: color,
-          roughness: 0.6,
-          metalness: 0.2
-        });
-
         const wallThickness = 0.02;
         const coverageOffset = rodThickness * 2;
         const lateralThickness = wallThickness + coverageOffset;
@@ -357,105 +405,82 @@ export default function ShelfConfigurator() {
         const expandedHeight = boxHeight + coverageOffset * 2;
         const expandedDepth = depth + coverageOffset * 2;
 
-        // Back wall
-        const backGeometry = new THREE.BoxGeometry(
-          expandedWidth,
-          expandedHeight,
-          depthThickness
-        );
-        const backWall = new THREE.Mesh(backGeometry, wallMaterial.clone());
-        backWall.position.set(
-          boxCenterX,
-          boxCenterY,
-          -depth / 2 - depthThickness / 2
-        );
-        backWall.castShadow = true;
-        backWall.receiveShadow = true;
-        shelfGroupRef.current.add(backWall);
+        // Wall types and their properties
+        const wallTypes = [
+          { 
+            type: 'back', 
+            geometry: new THREE.BoxGeometry(expandedWidth, expandedHeight, depthThickness),
+            position: [boxCenterX, boxCenterY, -depth / 2 - depthThickness / 2]
+          },
+          { 
+            type: 'bottom', 
+            geometry: new THREE.BoxGeometry(expandedWidth, verticalThickness, expandedDepth),
+            position: [boxCenterX, boxBottom - verticalThickness / 2, 0]
+          },
+          { 
+            type: 'left', 
+            geometry: new THREE.BoxGeometry(lateralThickness, expandedHeight, expandedDepth),
+            position: [boxLeft - lateralThickness / 2, boxCenterY, 0]
+          },
+          { 
+            type: 'right', 
+            geometry: new THREE.BoxGeometry(lateralThickness, expandedHeight, expandedDepth),
+            position: [boxRight + lateralThickness / 2, boxCenterY, 0]
+          },
+          { 
+            type: 'top', 
+            geometry: new THREE.BoxGeometry(expandedWidth, verticalThickness, expandedDepth),
+            position: [boxCenterX, boxTop + verticalThickness / 2, 0]
+          },
+          { 
+            type: 'front', 
+            geometry: new THREE.BoxGeometry(expandedWidth, expandedHeight, depthThickness),
+            position: [boxCenterX, boxCenterY, depth / 2 + depthThickness / 2]
+          }
+        ];
 
-        // Bottom wall
-        const bottomGeometry = new THREE.BoxGeometry(
-          expandedWidth,
-          verticalThickness,
-          expandedDepth
-        );
-        const bottomWall = new THREE.Mesh(bottomGeometry, wallMaterial.clone());
-        bottomWall.position.set(
-          boxCenterX,
-          boxBottom - verticalThickness / 2,
-          0
-        );
-        bottomWall.castShadow = true;
-        bottomWall.receiveShadow = true;
-        shelfGroupRef.current.add(bottomWall);
+        wallTypes.forEach(({ type, geometry, position }) => {
+          // Get individual wall properties
+          const wallColor = getWallProperty(key, type, 'color', color);
+          const wallVisible = getWallProperty(key, type, 'visible', true);
+          const wallOpacity = getWallProperty(key, type, 'opacity', 1);
+          
+          if (!wallVisible) return; // Skip if wall is hidden
+          
+          const wallMaterial = new THREE.MeshStandardMaterial({
+            color: wallColor,
+            roughness: 0.6,
+            metalness: 0.2,
+            transparent: wallOpacity < 1,
+            opacity: wallOpacity
+          });
 
-        // Left wall
-        const leftGeometry = new THREE.BoxGeometry(
-          lateralThickness,
-          expandedHeight,
-          expandedDepth
-        );
-        const leftWall = new THREE.Mesh(leftGeometry, wallMaterial.clone());
-        leftWall.position.set(
-          boxLeft - lateralThickness / 2,
-          boxCenterY,
-          0
-        );
-        leftWall.castShadow = true;
-        leftWall.receiveShadow = true;
-        shelfGroupRef.current.add(leftWall);
-
-        // Right wall
-        const rightGeometry = new THREE.BoxGeometry(
-          lateralThickness,
-          expandedHeight,
-          expandedDepth
-        );
-        const rightWall = new THREE.Mesh(rightGeometry, wallMaterial.clone());
-        rightWall.position.set(
-          boxRight + lateralThickness / 2,
-          boxCenterY,
-          0
-        );
-        rightWall.castShadow = true;
-        rightWall.receiveShadow = true;
-        shelfGroupRef.current.add(rightWall);
-
-        // Top wall
-        const topGeometry = new THREE.BoxGeometry(
-          expandedWidth,
-          verticalThickness,
-          expandedDepth
-        );
-        const topWall = new THREE.Mesh(topGeometry, wallMaterial.clone());
-        topWall.position.set(
-          boxCenterX,
-          boxTop + verticalThickness / 2,
-          0
-        );
-        topWall.castShadow = true;
-        topWall.receiveShadow = true;
-        shelfGroupRef.current.add(topWall);
-
-        // Front wall (optional - makes it fully enclosed)
-        const frontGeometry = new THREE.BoxGeometry(
-          expandedWidth,
-          expandedHeight,
-          depthThickness
-        );
-        const frontWall = new THREE.Mesh(frontGeometry, wallMaterial.clone());
-        frontWall.position.set(
-          boxCenterX,
-          boxCenterY,
-          depth / 2 + depthThickness / 2
-        );
-        frontWall.castShadow = true;
-        frontWall.receiveShadow = true;
-        shelfGroupRef.current.add(frontWall);
+          const wall = new THREE.Mesh(geometry, wallMaterial);
+          wall.position.set(...position);
+          wall.castShadow = true;
+          wall.receiveShadow = true;
+          
+          // Add user data for selection
+          wall.userData = { boxKey: key, wallType: type };
+          
+          // Highlight if selected
+          if (selectedWall && selectedWall.boxKey === key && selectedWall.wallType === type) {
+            const highlightMaterial = new THREE.MeshStandardMaterial({
+              color: 0xF7B801,
+              roughness: 0.3,
+              metalness: 0.5,
+              emissive: 0xF7B801,
+              emissiveIntensity: 0.3
+            });
+            wall.material = highlightMaterial;
+          }
+          
+          shelfGroupRef.current.add(wall);
+        });
       }
     });
 
-  }, [boxes, gridSize, coloredItems, boxDimensions]);
+  }, [boxes, gridSize, coloredItems, boxDimensions, wallProperties, selectedWall, getWallProperty]);
 
   const handleMouseDown = (row, col) => {
     if (editorMode === 'structure') {
@@ -648,7 +673,7 @@ export default function ShelfConfigurator() {
             <div>
               <h1 className="text-3xl sm:text-4xl uppercase">3D shelf configurator</h1>
               <p className="text-xs tracking-[0.4rem] text-muted">
-                STRUCTURE · ENCLOSE · RESIZE
+                STRUCTURE · ENCLOSE · EDIT WALLS · RESIZE
               </p>
             </div>
           </div>
@@ -711,7 +736,7 @@ export default function ShelfConfigurator() {
             <span className="text-xs tracking-[0.35rem] text-muted">EDITOR MODE</span>
             <div className="flex flex-wrap justify-center gap-3">
               <button
-                onClick={() => setEditorMode('structure')}
+                onClick={() => { setEditorMode('structure'); setSelectedWall(null); }}
                 className={`flex items-center gap-3 border-2 px-4 py-3 text-xs font-semibold tracking-[0.3rem] transition-all ${
                   editorMode === 'structure'
                     ? 'border-primary bg-primary text-contrast'
@@ -722,7 +747,7 @@ export default function ShelfConfigurator() {
                 STRUCTURE
               </button>
               <button
-                onClick={() => setEditorMode('fill')}
+                onClick={() => { setEditorMode('fill'); setSelectedWall(null); }}
                 className={`flex items-center gap-3 border-2 px-4 py-3 text-xs font-semibold tracking-[0.3rem] transition-all ${
                   editorMode === 'fill'
                     ? 'border-primary bg-primary text-contrast'
@@ -733,7 +758,18 @@ export default function ShelfConfigurator() {
                 ENCLOSE
               </button>
               <button
-                onClick={() => setEditorMode('resize')}
+                onClick={() => { setEditorMode('editWalls'); }}
+                className={`flex items-center gap-3 border-2 px-4 py-3 text-xs font-semibold tracking-[0.3rem] transition-all ${
+                  editorMode === 'editWalls'
+                    ? 'border-primary bg-primary text-contrast'
+                    : 'border-line text-primary hover:border-primary'
+                }`}
+              >
+                <Eye className="h-4 w-4" />
+                EDIT WALLS
+              </button>
+              <button
+                onClick={() => { setEditorMode('resize'); setSelectedWall(null); }}
                 className={`flex items-center gap-3 border-2 px-4 py-3 text-xs font-semibold tracking-[0.3rem] transition-all ${
                   editorMode === 'resize'
                     ? 'border-primary bg-primary text-contrast'
@@ -780,12 +816,101 @@ export default function ShelfConfigurator() {
                 <strong className="text-primary">Enclose Mode:</strong> Coat active compartments with pigment-rich panels. Toggle to reveal or conceal storage volumes.
               </p>
             )}
+            {editorMode === 'editWalls' && (
+              <p>
+                <strong className="text-primary">Edit Walls Mode:</strong> Isolate and modify individual wall surfaces. Click any panel in 2D or 3D space to adjust color, opacity, and visibility independently.
+              </p>
+            )}
             {editorMode === 'resize' && (
               <p>
                 <strong className="text-primary">Resize Mode:</strong> Pull wall handles to stretch or compress individual compartments. Achieve asymmetrical brutalist compositions effortlessly.
               </p>
             )}
           </div>
+
+          {editorMode === 'editWalls' && selectedWall && (
+            <div className="border-2 border-dhbBlue bg-background p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-xs font-semibold tracking-[0.3rem] text-primary">
+                  {selectedWall.wallType.toUpperCase()} WALL PROPERTIES
+                </h3>
+                <button
+                  onClick={() => setSelectedWall(null)}
+                  className="text-muted hover:text-primary"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-xs tracking-[0.25rem] text-muted">COLOR</label>
+                  <div className="flex flex-wrap gap-2">
+                    {colors.map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setWallProperty(selectedWall.boxKey, selectedWall.wallType, 'color', color)}
+                        className={`h-8 w-8 border-2 transition-all ${
+                          getWallProperty(selectedWall.boxKey, selectedWall.wallType, 'color', coloredItems.get(selectedWall.boxKey)) === color 
+                            ? 'border-dhbBlue scale-110' : 'border-line hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <label className="text-xs tracking-[0.25rem] text-muted">VISIBILITY</label>
+                  <button
+                    onClick={() => {
+                      const currentVisibility = getWallProperty(selectedWall.boxKey, selectedWall.wallType, 'visible', true);
+                      setWallProperty(selectedWall.boxKey, selectedWall.wallType, 'visible', !currentVisibility);
+                    }}
+                    className={`border-2 px-4 py-1 text-xs font-semibold tracking-[0.25rem] transition-colors ${
+                      getWallProperty(selectedWall.boxKey, selectedWall.wallType, 'visible', true)
+                        ? 'border-primary bg-primary text-contrast'
+                        : 'border-line text-muted'
+                    }`}
+                  >
+                    {getWallProperty(selectedWall.boxKey, selectedWall.wallType, 'visible', true) ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="text-xs tracking-[0.25rem] text-muted">OPACITY</label>
+                    <span className="text-xs text-primary">
+                      {Math.round(getWallProperty(selectedWall.boxKey, selectedWall.wallType, 'opacity', 1) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={getWallProperty(selectedWall.boxKey, selectedWall.wallType, 'opacity', 1)}
+                    onChange={(e) => setWallProperty(selectedWall.boxKey, selectedWall.wallType, 'opacity', parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    const wallKey = getWallKey(selectedWall.boxKey, selectedWall.wallType);
+                    setWallProperties(prev => {
+                      const newProps = new Map(prev);
+                      newProps.delete(wallKey);
+                      return newProps;
+                    });
+                  }}
+                  className="w-full border-2 border-line px-4 py-2 text-xs font-semibold tracking-[0.25rem] text-primary transition-all hover:border-primary"
+                >
+                  RESET TO DEFAULT
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -796,7 +921,7 @@ export default function ShelfConfigurator() {
               <Box className="h-5 w-5 text-dhbBlue" />
               <h3 className="text-lg uppercase">3D viewport</h3>
             </div>
-            <p className="text-xs tracking-[0.3rem] text-muted">DRAG TO ROTATE</p>
+            <p className="text-xs tracking-[0.3rem] text-muted">{editorMode === 'editWalls' ? 'CLICK WALLS' : 'DRAG TO ROTATE'}</p>
           </div>
           <div className="relative border-2 border-line bg-background" style={{ height: '500px' }}>
             <canvas
@@ -931,6 +1056,90 @@ export default function ShelfConfigurator() {
                               />
                             </>
                           )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ) : editorMode === 'editWalls' ? (
+                <div
+                  className="relative border border-line"
+                  style={{
+                    width: `${gridSize.cols * 40}px`,
+                    height: `${gridSize.rows * 40}px`,
+                    backgroundColor: 'rgba(32, 34, 52, 0.65)',
+                  }}
+                >
+                  {Array.from({ length: gridSize.rows }, (_, row) =>
+                    Array.from({ length: gridSize.cols }, (_, col) => {
+                      const key = getCellKey(row, col);
+                      const isActive = boxes.has(key);
+                      const hasWalls = coloredItems.has(key);
+                      const baseColor = coloredItems.get(key);
+
+                      if (!hasWalls || !isActive) return null;
+
+                      return (
+                        <div
+                          key={key}
+                          className="absolute"
+                          style={{ left: `${col * 40}px`, top: `${row * 40}px`, width: '40px', height: '40px' }}
+                        >
+                          <div
+                            className="absolute cursor-pointer transition-opacity hover:opacity-80"
+                            style={{
+                              left: '0px',
+                              top: '4px',
+                              width: '6px',
+                              height: '32px',
+                              backgroundColor: getWallProperty(key, 'left', 'color', baseColor),
+                              opacity: getWallProperty(key, 'left', 'visible', true) ? getWallProperty(key, 'left', 'opacity', 1) : 0.2,
+                              border: selectedWall?.boxKey === key && selectedWall?.wallType === 'left' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
+                            }}
+                            onClick={(e) => handleWallClick(key, 'left', e)}
+                          />
+                          <div
+                            className="absolute cursor-pointer transition-opacity hover:opacity-80"
+                            style={{
+                              right: '0px',
+                              top: '4px',
+                              width: '6px',
+                              height: '32px',
+                              backgroundColor: getWallProperty(key, 'right', 'color', baseColor),
+                              opacity: getWallProperty(key, 'right', 'visible', true) ? getWallProperty(key, 'right', 'opacity', 1) : 0.2,
+                              border: selectedWall?.boxKey === key && selectedWall?.wallType === 'right' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
+                            }}
+                            onClick={(e) => handleWallClick(key, 'right', e)}
+                          />
+                          <div
+                            className="absolute cursor-pointer transition-opacity hover:opacity-80"
+                            style={{
+                              left: '4px',
+                              top: '0px',
+                              width: '32px',
+                              height: '6px',
+                              backgroundColor: getWallProperty(key, 'top', 'color', baseColor),
+                              opacity: getWallProperty(key, 'top', 'visible', true) ? getWallProperty(key, 'top', 'opacity', 1) : 0.2,
+                              border: selectedWall?.boxKey === key && selectedWall?.wallType === 'top' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
+                            }}
+                            onClick={(e) => handleWallClick(key, 'top', e)}
+                          />
+                          <div
+                            className="absolute cursor-pointer transition-opacity hover:opacity-80"
+                            style={{
+                              left: '4px',
+                              bottom: '0px',
+                              width: '32px',
+                              height: '6px',
+                              backgroundColor: getWallProperty(key, 'bottom', 'color', baseColor),
+                              opacity: getWallProperty(key, 'bottom', 'visible', true) ? getWallProperty(key, 'bottom', 'opacity', 1) : 0.2,
+                              border: selectedWall?.boxKey === key && selectedWall?.wallType === 'bottom' ? '2px solid #F7B801' : '1px solid rgba(0,0,0,0.2)',
+                            }}
+                            onClick={(e) => handleWallClick(key, 'bottom', e)}
+                          />
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                            <div className="h-2 w-2 rounded-full bg-muted opacity-50" />
+                          </div>
                         </div>
                       );
                     })
